@@ -8,7 +8,7 @@ namespace WindowsFormsApp1
 {
     public partial class LoginForm : Form
     {
-        private string connectionString = "server=localhost;database=auto_production;user=root;password=1111;port=3306;SslMode=Preferred;AllowPublicKeyRetrieval=True;CharacterSet=utf8mb4;";
+        private string connectionString = Repositories.DatabaseConnection.ConnectionString;
 
         public LoginForm()
         {

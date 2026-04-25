@@ -74,3 +74,20 @@ D:\учеба\bztda\попытка бебебе\WindowsFormsApp1\obj\Debug\Windo
 D:\учеба\bztda\попытка бебебе\WindowsFormsApp1\obj\Debug\WindowsF.A1EEDF9B.Up2Date
 D:\учеба\bztda\попытка бебебе\WindowsFormsApp1\obj\Debug\WindowsFormsApp1.exe
 D:\учеба\bztda\попытка бебебе\WindowsFormsApp1\obj\Debug\WindowsFormsApp1.pdb
+C:\projects\WindowsFormsApp1\obj\Debug\WindowsFormsApp1.csproj.AssemblyReference.cache
+C:\projects\WindowsFormsApp1\obj\Debug\WindowsFormsApp1.AddDirectoryForm.resources
+C:\projects\WindowsFormsApp1\obj\Debug\WindowsFormsApp1.AddEditItemForm.resources
+C:\projects\WindowsFormsApp1\obj\Debug\WindowsFormsApp1.AddEditMaterialForm.resources
+C:\projects\WindowsFormsApp1\obj\Debug\WindowsFormsApp1.AddEditWorkshopForm.resources
+C:\projects\WindowsFormsApp1\obj\Debug\WindowsFormsApp1.ConfirmDeleteForm.resources
+C:\projects\WindowsFormsApp1\obj\Debug\WindowsFormsApp1.DeleteDirectoryForm.resources
+C:\projects\WindowsFormsApp1\obj\Debug\WindowsFormsApp1.ReportsForm.resources
+C:\projects\WindowsFormsApp1\obj\Debug\WindowsFormsApp1.LoginForm.resources
+C:\projects\WindowsFormsApp1\obj\Debug\WindowsFormsApp1.MainWorkingForm.resources
+C:\projects\WindowsFormsApp1\obj\Debug\WindowsFormsApp1.WelcomeForm.resources
+C:\projects\WindowsFormsApp1\obj\Debug\WindowsFormsApp1.Properties.Resources.resources
+C:\projects\WindowsFormsApp1\obj\Debug\WindowsFormsApp1.Repositories.ColumnDefinition.resources
+C:\projects\WindowsFormsApp1\obj\Debug\WindowsFormsApp1.csproj.GenerateResource.cache
+C:\projects\WindowsFormsApp1\obj\Debug\WindowsFormsApp1.csproj.CoreCompileInputs.cache
+C:\projects\WindowsFormsApp1\obj\Debug\WindowsFormsApp1.exe
+C:\projects\WindowsFormsApp1\obj\Debug\WindowsFormsApp1.pdb

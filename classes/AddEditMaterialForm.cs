@@ -9,13 +9,15 @@ namespace WindowsFormsApp1
     public partial class AddEditMaterialForm : Form
     {
         private int materialId = -1;
+        private string connectionString;
         private MaterialRepository materialRepo;
         private SupplierRepository supplierRepo;
 
         public AddEditMaterialForm(string connString, int id = -1)
         {
+            connectionString = connString;
             materialRepo = new MaterialRepository(connString);
-            supplierRepo = new SupplierRepository();
+            supplierRepo = new SupplierRepository(connString);
             materialId = id;
             InitializeComponent();
             LoadSuppliers();
@@ -53,11 +55,14 @@ namespace WindowsFormsApp1
 
             try
             {
+                decimal fullBatchMass = decimal.Parse(txtMass.Text.Replace(".", ","));
+
                 var material = new Material
                 {
                     Name = txtName.Text,
                     BatchNumber = txtBatch.Text,
-                    FullBatchMass = decimal.Parse(txtMass.Text.Replace(".", ",")),
+                    FullBatchMass = fullBatchMass,
+                    TotalMass = fullBatchMass,
                     Length = decimal.Parse(txtLength.Text.Replace(".", ",")),
                     Quantity = int.Parse(txtQuantity.Text),
                     ArrivalFrom = cmbArrival.Text.Trim(),
@@ -91,7 +96,7 @@ namespace WindowsFormsApp1
 
                     if (supplier != null)
                     {
-                        var msRepo = new MaterialSupplierRepository();
+                        var msRepo = new MaterialSupplierRepository(connectionString);
                         msRepo.Insert(savedMaterialId, supplier.Id, material.Quantity, material.ArrivalDate);
                     }
                 }

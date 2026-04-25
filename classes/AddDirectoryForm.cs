@@ -229,6 +229,7 @@ namespace WindowsFormsApp1
             refBtnCol.DefaultCellStyle.ForeColor = Color.Black;
             dgvColumns.Columns.Add(refBtnCol);
 
+            dgvColumns.CellContentClick -= DgvColumns_CellContentClick;
             dgvColumns.CellContentClick += DgvColumns_CellContentClick;
             dgvColumns.DefaultCellStyle.ForeColor = Color.Black;
 
@@ -325,7 +326,6 @@ namespace WindowsFormsApp1
 
                 if (isEditMode)
                 {
-                    // Обновляем запись в directories
                     var dirRepo = new DirectoryRepository(connectionString);
                     dirRepo.Update(new DirectoryItem
                     {
@@ -335,6 +335,10 @@ namespace WindowsFormsApp1
                         IconName = selectedIcon,
                         TableName = tableName
                     });
+
+                    var dynRepo = new DynamicTableRepository(connectionString);
+                    dynRepo.SyncTableColumns(tableName, columns);
+                    ApplyReverseForeignKeys(tableName, columns);
 
                     MessageBox.Show("Справочник обновлён!");
                 }
@@ -354,27 +358,7 @@ namespace WindowsFormsApp1
                     var dynRepo = new DynamicTableRepository(connectionString);
                     dynRepo.CreateTableWithColumns(tableName, columns);
 
-                    // ТЕПЕРЬ ГЛАВНОЕ: для КАЖДОЙ колонки-связи добавляем её в указанные таблицы
-                    foreach (var col in columns)
-                    {
-                        if (col.IsForeignKey && !string.IsNullOrEmpty(col.ReferenceTablesString))
-                        {
-                            var targetTables = col.ReferenceTablesString.Split(new[] { ',' }, StringSplitOptions.RemoveEmptyEntries);
-                            foreach (var targetTable in targetTables)
-                            {
-                                string cleanTarget = targetTable.Trim();
-                                if (cleanTarget == tableName) continue; // пропускаем себя
-
-                                // Добавляем колонку `tableName`_id в целевую таблицу
-                                string newColName = $"{tableName}_id";
-
-                                if (!ColumnExists(cleanTarget, newColName))
-                                {
-                                    AddColumnWithForeignKey(cleanTarget, newColName, tableName, col.Name);
-                                }
-                            }
-                        }
-                    }
+                    ApplyReverseForeignKeys(tableName, columns);
 
                     MessageBox.Show($"Справочник '{txtName.Text}' создан!\nТаблица: {tableName}");
                 }
@@ -385,6 +369,27 @@ namespace WindowsFormsApp1
             catch (Exception ex)
             {
                 MessageBox.Show("Ошибка создания справочника:\n" + ex.Message);
+            }
+        }
+
+        private void ApplyReverseForeignKeys(string tableName, List<ColumnDefinition> columns)
+        {
+            foreach (var col in columns)
+            {
+                if (!col.IsForeignKey || string.IsNullOrEmpty(col.ReferenceTablesString))
+                    continue;
+
+                var targetTables = col.ReferenceTablesString.Split(new[] { ',' }, StringSplitOptions.RemoveEmptyEntries);
+                foreach (var targetTable in targetTables)
+                {
+                    string cleanTarget = targetTable.Trim();
+                    if (cleanTarget == tableName) continue;
+
+                    string newColName = $"{tableName}_id";
+
+                    if (!ColumnExists(cleanTarget, newColName))
+                        AddColumnWithForeignKey(cleanTarget, newColName, tableName, col.Name);
+                }
             }
         }
 

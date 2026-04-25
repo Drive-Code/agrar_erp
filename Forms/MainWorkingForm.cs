@@ -478,26 +478,26 @@ namespace WindowsFormsApp1
             catch { return ""; }
         }
         // Добавь этот метод в класс MainWorkingForm
-        private string GetColumnComment(string tableName, string columnName)
-        {
-            try
-            {
-                using (var conn = new MySqlConnector.MySqlConnection(connectionString))
-                {
-                    conn.Open();
-                    string sql = @"SELECT COLUMN_COMMENT FROM INFORMATION_SCHEMA.COLUMNS 
-                           WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = @table AND COLUMN_NAME = @column";
-                    using (var cmd = new MySqlConnector.MySqlCommand(sql, conn))
-                    {
-                        cmd.Parameters.AddWithValue("@table", tableName);
-                        cmd.Parameters.AddWithValue("@column", columnName);
-                        var result = cmd.ExecuteScalar();
-                        return result?.ToString() ?? "";
-                    }
-                }
-            }
-            catch { return ""; }
-        }
+        //private string GetColumnComment(string tableName, string columnName)
+        //{
+        //    try
+        //    {
+        //        using (var conn = new MySqlConnector.MySqlConnection(connectionString))
+        //        {
+        //            conn.Open();
+        //            string sql = @"SELECT COLUMN_COMMENT FROM INFORMATION_SCHEMA.COLUMNS 
+        //                   WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = @table AND COLUMN_NAME = @column";
+        //            using (var cmd = new MySqlConnector.MySqlCommand(sql, conn))
+        //            {
+        //                cmd.Parameters.AddWithValue("@table", tableName);
+        //                cmd.Parameters.AddWithValue("@column", columnName);
+        //                var result = cmd.ExecuteScalar();
+        //                return result?.ToString() ?? "";
+        //            }
+        //        }
+        //    }
+        //    catch { return ""; }
+        //}
 
         private void LoadGroupedMaterialsPage(string search = "")
         {

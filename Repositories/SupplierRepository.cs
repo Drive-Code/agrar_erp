@@ -21,6 +21,11 @@ namespace WindowsFormsApp1.Repositories
             connectionString = DatabaseConnection.ConnectionString;
         }
 
+        public SupplierRepository(string connString)
+        {
+            connectionString = connString;
+        }
+
         private Supplier Map(MySqlDataReader reader)
         {
             int idOrd = reader.GetOrdinal("id");

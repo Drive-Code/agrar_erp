@@ -25,6 +25,11 @@ namespace WindowsFormsApp1.Repositories
             connectionString = DatabaseConnection.ConnectionString;
         }
 
+        public MaterialSupplierRepository(string connString)
+        {
+            connectionString = connString;
+        }
+
         public List<MaterialSupplier> GetAll()
         {
             var list = new List<MaterialSupplier>();

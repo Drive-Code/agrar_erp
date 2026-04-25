@@ -65,6 +65,9 @@ namespace WindowsFormsApp1.Repositories
 
         public DataTable Search(string tableName, string searchText, List<string> columns)
         {
+            if (columns == null || columns.Count == 0)
+                return GetAll(tableName);
+
             var dt = new DataTable();
             using (var conn = new MySqlConnection(connectionString))
             {
@@ -160,19 +163,7 @@ namespace WindowsFormsApp1.Repositories
 
             foreach (var col in columns)
             {
-                string sqlType = col.IsForeignKey ? "INT" : col.DataType;
-                string colDef = $"`{col.ColumnName}` {sqlType}";
-
-                if (!col.IsForeignKey && col.Length.HasValue && (sqlType.StartsWith("VARCHAR") || sqlType.StartsWith("DECIMAL")))
-                    colDef += $"({col.Length.Value})";
-
-                colDef += col.IsNullable ? " NULL" : " NOT NULL";
-
-                // Добавляем русское название в COMMENT
-                if (!string.IsNullOrEmpty(col.Name))
-                    colDef += $" COMMENT '{col.Name.Replace("'", "\\'")}'";
-
-                parts.Add(colDef);
+                parts.Add(BuildColumnSql(col));
 
                 if (col.IsForeignKey && !string.IsNullOrEmpty(col.ReferenceTablesString))
                 {
@@ -206,6 +197,91 @@ namespace WindowsFormsApp1.Repositories
                         throw;
                     }
                 }
+            }
+        }
+
+        public void SyncTableColumns(string tableName, List<ColumnDefinition> columns)
+        {
+            using (var conn = new MySqlConnection(connectionString))
+            {
+                conn.Open();
+
+                foreach (var col in columns)
+                {
+                    bool exists = ColumnExists(conn, tableName, col.ColumnName);
+                    if (!exists || !col.IsForeignKey)
+                    {
+                        string action = exists ? "MODIFY COLUMN" : "ADD COLUMN";
+                        string sql = $"ALTER TABLE `{tableName}` {action} {BuildColumnSql(col)}";
+                        using (var cmd = new MySqlCommand(sql, conn))
+                            cmd.ExecuteNonQuery();
+                    }
+
+                    AddForeignKeys(conn, tableName, col);
+                }
+            }
+        }
+
+        private string BuildColumnSql(ColumnDefinition col)
+        {
+            string sqlType = col.IsForeignKey ? "INT" : col.DataType;
+            string colDef = $"`{col.ColumnName}` {sqlType}";
+
+            if (!col.IsForeignKey && col.Length.HasValue && (sqlType.StartsWith("VARCHAR") || sqlType.StartsWith("DECIMAL")))
+                colDef += $"({col.Length.Value})";
+
+            colDef += col.IsNullable ? " NULL" : " NOT NULL";
+
+            if (!string.IsNullOrEmpty(col.Name))
+                colDef += $" COMMENT '{col.Name.Replace("'", "\\'")}'";
+
+            return colDef;
+        }
+
+        private void AddForeignKeys(MySqlConnection conn, string tableName, ColumnDefinition col)
+        {
+            if (!col.IsForeignKey || string.IsNullOrEmpty(col.ReferenceTablesString))
+                return;
+
+            var tables = col.ReferenceTablesString.Split(new[] { ',' }, StringSplitOptions.RemoveEmptyEntries);
+            foreach (var tbl in tables)
+            {
+                string cleanTable = tbl.Trim();
+                if (!TableExists(cleanTable)) continue;
+
+                string fkName = $"fk_{tableName}_{col.ColumnName}_{cleanTable}";
+                if (ForeignKeyExists(conn, tableName, fkName)) continue;
+
+                string sql = $"ALTER TABLE `{tableName}` ADD CONSTRAINT `{fkName}` FOREIGN KEY (`{col.ColumnName}`) REFERENCES `{cleanTable}` (`{col.ReferenceHeader}`) ON DELETE CASCADE ON UPDATE CASCADE";
+                using (var cmd = new MySqlCommand(sql, conn))
+                    cmd.ExecuteNonQuery();
+            }
+        }
+
+        private bool ColumnExists(MySqlConnection conn, string tableName, string columnName)
+        {
+            string sql = @"SELECT COUNT(*) FROM information_schema.COLUMNS 
+                           WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = @table AND COLUMN_NAME = @column";
+            using (var cmd = new MySqlCommand(sql, conn))
+            {
+                cmd.Parameters.AddWithValue("@table", tableName);
+                cmd.Parameters.AddWithValue("@column", columnName);
+                return Convert.ToInt32(cmd.ExecuteScalar()) > 0;
+            }
+        }
+
+        private bool ForeignKeyExists(MySqlConnection conn, string tableName, string foreignKeyName)
+        {
+            string sql = @"SELECT COUNT(*) FROM information_schema.TABLE_CONSTRAINTS
+                           WHERE CONSTRAINT_SCHEMA = DATABASE()
+                           AND TABLE_NAME = @table
+                           AND CONSTRAINT_NAME = @name
+                           AND CONSTRAINT_TYPE = 'FOREIGN KEY'";
+            using (var cmd = new MySqlCommand(sql, conn))
+            {
+                cmd.Parameters.AddWithValue("@table", tableName);
+                cmd.Parameters.AddWithValue("@name", foreignKeyName);
+                return Convert.ToInt32(cmd.ExecuteScalar()) > 0;
             }
         }
 
@@ -255,6 +331,9 @@ namespace WindowsFormsApp1.Repositories
 
         public DataTable SearchPage(string tableName, string searchText, int page, int pageSize, List<string> columns)
         {
+            if (columns == null || columns.Count == 0)
+                return GetPage(tableName, page, pageSize);
+
             var dt = new DataTable();
             int offset = (page - 1) * pageSize;
             using (var conn = new MySqlConnection(connectionString))
@@ -279,6 +358,9 @@ namespace WindowsFormsApp1.Repositories
 
         public int GetSearchTotalCount(string tableName, string searchText, List<string> columns)
         {
+            if (columns == null || columns.Count == 0)
+                return GetTotalCount(tableName);
+
             using (var conn = new MySqlConnection(connectionString))
             {
                 conn.Open();
