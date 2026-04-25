@@ -76,6 +76,8 @@ namespace WindowsFormsApp1.Repositories
             using (var conn = new MySqlConnection(connectionString))
             {
                 conn.Open();
+                EnsureUniqueMaterialSupplierKey(conn);
+
                 string sql = @"INSERT INTO material_suppliers (material_id, supplier_id, quantity, supply_date)
                                VALUES (@matId, @supId, @qty, @date)
                                ON DUPLICATE KEY UPDATE quantity=@qty, supply_date=@date";
@@ -87,6 +89,48 @@ namespace WindowsFormsApp1.Repositories
                     cmd.Parameters.AddWithValue("@date", (object)supplyDate ?? DBNull.Value);
                     cmd.ExecuteNonQuery();
                 }
+            }
+        }
+
+        private void EnsureUniqueMaterialSupplierKey(MySqlConnection conn)
+        {
+            string indexCheckSql = @"
+                SELECT COUNT(*)
+                FROM (
+                    SELECT INDEX_NAME
+                    FROM information_schema.STATISTICS
+                    WHERE TABLE_SCHEMA = DATABASE()
+                    AND TABLE_NAME = 'material_suppliers'
+                    AND NON_UNIQUE = 0
+                    GROUP BY INDEX_NAME
+                    HAVING GROUP_CONCAT(COLUMN_NAME ORDER BY SEQ_IN_INDEX) = 'material_id,supplier_id'
+                ) existing_indexes";
+
+            using (var cmd = new MySqlCommand(indexCheckSql, conn))
+            {
+                if (Convert.ToInt32(cmd.ExecuteScalar()) > 0)
+                    return;
+            }
+
+            string duplicateCheckSql = @"
+                SELECT COUNT(*)
+                FROM (
+                    SELECT material_id, supplier_id
+                    FROM material_suppliers
+                    GROUP BY material_id, supplier_id
+                    HAVING COUNT(*) > 1
+                ) duplicates";
+
+            using (var cmd = new MySqlCommand(duplicateCheckSql, conn))
+            {
+                if (Convert.ToInt32(cmd.ExecuteScalar()) > 0)
+                    throw new InvalidOperationException("В material_suppliers уже есть дубликаты material_id/supplier_id. Удалите дубликаты перед созданием уникального индекса.");
+            }
+
+            using (var cmd = new MySqlCommand(
+                "ALTER TABLE material_suppliers ADD UNIQUE KEY uq_material_suppliers_material_supplier (material_id, supplier_id)", conn))
+            {
+                cmd.ExecuteNonQuery();
             }
         }
 

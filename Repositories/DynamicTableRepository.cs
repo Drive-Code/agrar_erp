@@ -73,7 +73,7 @@ namespace WindowsFormsApp1.Repositories
             {
                 conn.Open();
                 var conditions = new List<string>();
-                foreach (var col in columns)
+                foreach (var col in columns ?? new List<string>())
                     conditions.Add($"`{col}` LIKE @search");
                 string query = $"SELECT * FROM `{tableName}` WHERE {string.Join(" OR ", conditions)} ORDER BY id";
                 using (var cmd = new MySqlCommand(query, conn))
@@ -110,6 +110,9 @@ namespace WindowsFormsApp1.Repositories
 
         public void Update(string tableName, int id, Dictionary<string, object> values)
         {
+            if (values == null || values.Count == 0)
+                return;
+
             var setClauses = new List<string>();
             using (var conn = new MySqlConnection(connectionString))
             {
@@ -158,29 +161,30 @@ namespace WindowsFormsApp1.Repositories
 
         public void CreateTableWithColumns(string tableName, List<ColumnDefinition> columns)
         {
-            var parts = new List<string>();
+            ValidateForeignKeyDefinitions(columns);
+
+            var parts = new List<string>
+            {
+                "id INT AUTO_INCREMENT PRIMARY KEY"
+            };
             var foreignKeys = new List<string>();
 
-            foreach (var col in columns)
+            foreach (var col in columns ?? new List<ColumnDefinition>())
             {
                 parts.Add(BuildColumnSql(col));
 
                 if (col.IsForeignKey && !string.IsNullOrEmpty(col.ReferenceTablesString))
                 {
-                    var tables = col.ReferenceTablesString.Split(new[] { ',' }, StringSplitOptions.RemoveEmptyEntries);
-                    foreach (var tbl in tables)
-                    {
-                        string cleanTable = tbl.Trim();
-                        if (!TableExists(cleanTable)) continue;
+                    string cleanTable = GetSingleReferenceTable(col);
+                    if (string.IsNullOrEmpty(cleanTable) || !TableExists(cleanTable)) continue;
 
-                        string fkName = $"fk_{tableName}_{col.ColumnName}_{cleanTable}";
-                        foreignKeys.Add($"CONSTRAINT `{fkName}` FOREIGN KEY (`{col.ColumnName}`) REFERENCES `{cleanTable}` (`{col.ReferenceHeader}`) ON DELETE CASCADE ON UPDATE CASCADE");
-                    }
+                    string fkName = $"fk_{tableName}_{col.ColumnName}_{cleanTable}";
+                    foreignKeys.Add($"CONSTRAINT `{fkName}` FOREIGN KEY (`{col.ColumnName}`) REFERENCES `{cleanTable}` (`{col.ReferenceHeader}`) ON DELETE CASCADE ON UPDATE CASCADE");
                 }
             }
 
             parts.AddRange(foreignKeys);
-            string sql = $"CREATE TABLE IF NOT EXISTS `{tableName}` (id INT AUTO_INCREMENT PRIMARY KEY, {string.Join(", ", parts)}) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci";
+            string sql = $"CREATE TABLE IF NOT EXISTS `{tableName}` ({string.Join(", ", parts)}) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci";
 
             using (var conn = new MySqlConnection(connectionString))
             {
@@ -202,11 +206,13 @@ namespace WindowsFormsApp1.Repositories
 
         public void SyncTableColumns(string tableName, List<ColumnDefinition> columns)
         {
+            ValidateForeignKeyDefinitions(columns);
+
             using (var conn = new MySqlConnection(connectionString))
             {
                 conn.Open();
 
-                foreach (var col in columns)
+                foreach (var col in columns ?? new List<ColumnDefinition>())
                 {
                     bool exists = ColumnExists(conn, tableName, col.ColumnName);
                     if (!exists || !col.IsForeignKey)
@@ -217,6 +223,7 @@ namespace WindowsFormsApp1.Repositories
                             cmd.ExecuteNonQuery();
                     }
 
+                    DropStaleForeignKeys(conn, tableName, col);
                     AddForeignKeys(conn, tableName, col);
                 }
             }
@@ -238,22 +245,85 @@ namespace WindowsFormsApp1.Repositories
             return colDef;
         }
 
+        private void ValidateForeignKeyDefinitions(List<ColumnDefinition> columns)
+        {
+            foreach (var col in columns ?? new List<ColumnDefinition>())
+            {
+                if (col.IsForeignKey)
+                    GetSingleReferenceTable(col);
+            }
+        }
+
         private void AddForeignKeys(MySqlConnection conn, string tableName, ColumnDefinition col)
         {
             if (!col.IsForeignKey || string.IsNullOrEmpty(col.ReferenceTablesString))
                 return;
 
-            var tables = col.ReferenceTablesString.Split(new[] { ',' }, StringSplitOptions.RemoveEmptyEntries);
-            foreach (var tbl in tables)
+            string cleanTable = GetSingleReferenceTable(col);
+            if (string.IsNullOrEmpty(cleanTable) || !TableExists(cleanTable)) return;
+
+            string fkName = $"fk_{tableName}_{col.ColumnName}_{cleanTable}";
+            if (ForeignKeyExists(conn, tableName, fkName)) return;
+
+            string sql = $"ALTER TABLE `{tableName}` ADD CONSTRAINT `{fkName}` FOREIGN KEY (`{col.ColumnName}`) REFERENCES `{cleanTable}` (`{col.ReferenceHeader}`) ON DELETE CASCADE ON UPDATE CASCADE";
+            using (var cmd = new MySqlCommand(sql, conn))
+                cmd.ExecuteNonQuery();
+        }
+
+        private string GetSingleReferenceTable(ColumnDefinition col)
+        {
+            var tables = (col.ReferenceTablesString ?? "")
+                .Split(new[] { ',' }, StringSplitOptions.RemoveEmptyEntries);
+            var cleanTables = new List<string>();
+
+            foreach (var table in tables)
             {
-                string cleanTable = tbl.Trim();
-                if (!TableExists(cleanTable)) continue;
+                string cleanTable = table.Trim();
+                if (!string.IsNullOrEmpty(cleanTable))
+                    cleanTables.Add(cleanTable);
+            }
 
-                string fkName = $"fk_{tableName}_{col.ColumnName}_{cleanTable}";
-                if (ForeignKeyExists(conn, tableName, fkName)) continue;
+            if (cleanTables.Count == 0)
+                return null;
 
-                string sql = $"ALTER TABLE `{tableName}` ADD CONSTRAINT `{fkName}` FOREIGN KEY (`{col.ColumnName}`) REFERENCES `{cleanTable}` (`{col.ReferenceHeader}`) ON DELETE CASCADE ON UPDATE CASCADE";
-                using (var cmd = new MySqlCommand(sql, conn))
+            if (cleanTables.Count > 1)
+                throw new InvalidOperationException($"Колонка '{col.ColumnName}' не может ссылаться сразу на несколько таблиц. Создайте отдельную колонку для каждой связи.");
+
+            return cleanTables[0];
+        }
+
+        private void DropStaleForeignKeys(MySqlConnection conn, string tableName, ColumnDefinition col)
+        {
+            string desiredTable = col.IsForeignKey ? GetSingleReferenceTable(col) : null;
+            string desiredName = string.IsNullOrEmpty(desiredTable)
+                ? null
+                : $"fk_{tableName}_{col.ColumnName}_{desiredTable}";
+
+            var constraints = new List<string>();
+            string sql = @"SELECT CONSTRAINT_NAME
+                           FROM information_schema.KEY_COLUMN_USAGE
+                           WHERE CONSTRAINT_SCHEMA = DATABASE()
+                           AND TABLE_NAME = @table
+                           AND COLUMN_NAME = @column
+                           AND REFERENCED_TABLE_NAME IS NOT NULL";
+
+            using (var cmd = new MySqlCommand(sql, conn))
+            {
+                cmd.Parameters.AddWithValue("@table", tableName);
+                cmd.Parameters.AddWithValue("@column", col.ColumnName);
+                using (var reader = cmd.ExecuteReader())
+                {
+                    while (reader.Read())
+                        constraints.Add(reader.GetString(0));
+                }
+            }
+
+            foreach (var constraint in constraints)
+            {
+                if (constraint == desiredName)
+                    continue;
+
+                using (var cmd = new MySqlCommand($"ALTER TABLE `{tableName}` DROP FOREIGN KEY `{constraint}`", conn))
                     cmd.ExecuteNonQuery();
             }
         }
